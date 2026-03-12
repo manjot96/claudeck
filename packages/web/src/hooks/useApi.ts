@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import type { Project, Session, CreateSessionRequest, ClaudeStreamEvent } from "@claudeck/shared"
+import type { Project, Session, CreateSessionRequest, ClaudeStreamEvent, AgentProfile } from "@claudeck/shared"
 import { httpBase } from "./hostUrl"
 
 export function useApi(host: string | null, token: string | null) {
@@ -63,5 +63,39 @@ export function useApi(host: string | null, token: string | null) {
     [fetchApi]
   )
 
-  return { getProjects, getSessions, getAllSessions, createSession, killSession, getSessionEvents }
+  // ── Profile API ──
+
+  const getProfiles = useCallback(
+    () => fetchApi<AgentProfile[]>("/api/profiles"),
+    [fetchApi]
+  )
+
+  const createProfile = useCallback(
+    (body: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) =>
+      fetchApi<AgentProfile>("/api/profiles", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    [fetchApi]
+  )
+
+  const updateProfile = useCallback(
+    (id: string, body: Partial<AgentProfile>) =>
+      fetchApi<{ ok: boolean }>(`/api/profiles/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    [fetchApi]
+  )
+
+  const deleteProfile = useCallback(
+    (id: string) =>
+      fetchApi<{ ok: boolean }>(`/api/profiles/${id}`, { method: "DELETE" }),
+    [fetchApi]
+  )
+
+  return {
+    getProjects, getSessions, getAllSessions, createSession, killSession, getSessionEvents,
+    getProfiles, createProfile, updateProfile, deleteProfile,
+  }
 }

@@ -61,6 +61,7 @@ export type DaemonInfo = {
 export type CreateSessionRequest = {
   projectPath: string
   prompt: string
+  profileId?: string
 }
 
 export type ApiError = {
@@ -76,6 +77,32 @@ export type DaemonConfig = {
   bind: string
   retentionDays?: number
   maxConcurrentSessions?: number
+  tls?: { enabled: boolean; certPath: string; keyPath: string; caPath: string }
+}
+
+// ── Agent Profiles ──
+
+export type AgentProfile = {
+  id: string
+  name: string
+  promptTemplate: string
+  allowedTools?: string[]
+  cliFlags?: string[]
+  projectScope: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Saved Machines ──
+
+export type SavedMachine = {
+  id: string
+  name: string
+  host: string
+  token: string
+  mdnsName?: string
+  lastSeen: string
+  isDefault: boolean
 }
 
 // ── Settings ──

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useDiscovery } from "../hooks/useDiscovery"
 
 type Props = {
   onConnect: (host: string, token: string) => Promise<boolean>
@@ -6,6 +7,7 @@ type Props = {
 
 export default function ConnectScreen({ onConnect }: Props) {
   const [host, setHost] = useState("")
+  const discovery = useDiscovery()
   const [token, setToken] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -185,6 +187,51 @@ export default function ConnectScreen({ onConnect }: Props) {
             )}
             {loading ? "Connecting..." : "Connect"}
           </button>
+
+          {/* Scan Network */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={discovery.scan}
+              disabled={discovery.scanning}
+              className="w-full py-2.5 min-h-[44px] border border-surface-overlay rounded-lg
+                text-slate-400 text-sm hover:border-accent hover:text-accent
+                disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {discovery.scanning ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-slate-500/30 border-t-slate-400 rounded-full animate-spin-slow" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="8" cy="8" r="6" />
+                    <path d="M8 2a6 6 0 014 2M8 14a6 6 0 01-4-2" />
+                    <circle cx="8" cy="8" r="2" />
+                  </svg>
+                  Scan Network
+                </>
+              )}
+            </button>
+
+            {discovery.found.length > 0 && (
+              <div className="space-y-1.5">
+                {discovery.found.map((d, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setHost(d.host)}
+                    className="w-full text-left px-3 py-2 bg-surface rounded-lg border border-surface-overlay
+                      hover:border-accent transition-colors text-sm"
+                  >
+                    <span className="text-slate-200">{d.hostname}</span>
+                    <span className="text-slate-500 text-xs ml-2">{d.host}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Version */}
           <p className="text-center text-xs text-slate-500">v1.0.0</p>

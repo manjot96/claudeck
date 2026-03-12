@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
-import type { Session, ClaudeStreamEvent } from "@claudeck/shared"
+import type { Session, ClaudeStreamEvent, AgentProfile } from "@claudeck/shared"
 
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
 const MIGRATIONS: Record<number, string[]> = {
   1: [
@@ -24,6 +24,13 @@ const MIGRATIONS: Record<number, string[]> = {
     `CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id)`,
     `CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, sequence)`,
+  ],
+  2: [
+    `CREATE TABLE IF NOT EXISTS profiles (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, prompt_template TEXT NOT NULL,
+      allowed_tools TEXT, cli_flags TEXT, project_scope TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )`,
   ],
 }
 
@@ -139,11 +146,70 @@ export function createStorage(dbPath: string) {
     return result.changes
   }
 
+  // ── Profile CRUD ──
+
+  function saveProfile(p: AgentProfile): void {
+    db.prepare(
+      `INSERT INTO profiles (id, name, prompt_template, allowed_tools, cli_flags, project_scope, created_at, updated_at)
+       VALUES ($id, $name, $promptTemplate, $allowedTools, $cliFlags, $projectScope, $createdAt, $updatedAt)`
+    ).run({
+      $id: p.id, $name: p.name, $promptTemplate: p.promptTemplate,
+      $allowedTools: p.allowedTools ? JSON.stringify(p.allowedTools) : null,
+      $cliFlags: p.cliFlags ? JSON.stringify(p.cliFlags) : null,
+      $projectScope: JSON.stringify(p.projectScope),
+      $createdAt: p.createdAt, $updatedAt: p.updatedAt,
+    })
+  }
+
+  function getProfile(id: string): AgentProfile | null {
+    const row = db.query("SELECT * FROM profiles WHERE id = $id").get({ $id: id }) as Record<string, unknown> | null
+    return row ? rowToProfile(row) : null
+  }
+
+  function listProfiles(): AgentProfile[] {
+    const rows = db.query("SELECT * FROM profiles ORDER BY name").all() as Record<string, unknown>[]
+    return rows.map(rowToProfile)
+  }
+
+  function updateProfile(id: string, fields: Partial<AgentProfile>): void {
+    const sets: string[] = []
+    const params: Record<string, unknown> = { $id: id }
+    if (fields.name !== undefined) { sets.push("name = $name"); params.$name = fields.name }
+    if (fields.promptTemplate !== undefined) { sets.push("prompt_template = $pt"); params.$pt = fields.promptTemplate }
+    if (fields.allowedTools !== undefined) { sets.push("allowed_tools = $at"); params.$at = JSON.stringify(fields.allowedTools) }
+    if (fields.cliFlags !== undefined) { sets.push("cli_flags = $cf"); params.$cf = JSON.stringify(fields.cliFlags) }
+    if (fields.projectScope !== undefined) { sets.push("project_scope = $ps"); params.$ps = JSON.stringify(fields.projectScope) }
+    if (fields.updatedAt !== undefined) { sets.push("updated_at = $ua"); params.$ua = fields.updatedAt }
+    if (sets.length === 0) return
+    db.prepare(`UPDATE profiles SET ${sets.join(", ")} WHERE id = $id`).run(params)
+  }
+
+  function deleteProfile(id: string): void {
+    db.prepare("DELETE FROM profiles WHERE id = $id").run({ $id: id })
+  }
+
   function close(): void {
     db.close()
   }
 
-  return { saveSession, updateSession, getSession, listSessions, saveEvents, getEvents, deleteOlderThan, close }
+  return {
+    saveSession, updateSession, getSession, listSessions, saveEvents, getEvents, deleteOlderThan,
+    saveProfile, getProfile, listProfiles, updateProfile, deleteProfile,
+    close,
+  }
+}
+
+function rowToProfile(row: Record<string, unknown>): AgentProfile {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    promptTemplate: row.prompt_template as string,
+    allowedTools: row.allowed_tools ? JSON.parse(row.allowed_tools as string) : undefined,
+    cliFlags: row.cli_flags ? JSON.parse(row.cli_flags as string) : undefined,
+    projectScope: row.project_scope ? JSON.parse(row.project_scope as string) : [],
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  }
 }
 
 function rowToSession(row: Record<string, unknown>): Session {

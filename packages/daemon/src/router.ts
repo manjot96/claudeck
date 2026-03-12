@@ -1,11 +1,13 @@
 import type { ApiError, DaemonInfo, CreateSessionRequest } from "@claudeck/shared"
 import type { createAuthChecker } from "./auth"
 import type { createSessionManager } from "./sessions"
+import type { createProfileManager } from "./profiles"
 import { scanProjects } from "./projects"
 
 type RouterDeps = {
   auth: ReturnType<typeof createAuthChecker>
   sessions: ReturnType<typeof createSessionManager>
+  profiles?: ReturnType<typeof createProfileManager>
   projectsDir?: string
   hostname: string
   mdnsName: string
@@ -96,6 +98,38 @@ export function createRouter(deps: RouterDeps) {
         return errorResponse("Session not found", "NOT_FOUND", 404)
       }
       return json({ ok: true })
+    }
+
+    // ── Profile endpoints ──
+
+    if (method === "GET" && path === "/api/profiles") {
+      return json(deps.profiles?.list() ?? [])
+    }
+
+    if (method === "POST" && path === "/api/profiles") {
+      if (!deps.profiles) return errorResponse("Profiles not available", "NOT_AVAILABLE", 500)
+      const body = await req.json()
+      return json(deps.profiles.create(body), 201)
+    }
+
+    const profileMatch = path.match(/^\/api\/profiles\/([^/]+)$/)
+    if (profileMatch) {
+      const id = profileMatch[1]
+      if (method === "GET") {
+        const profile = deps.profiles?.get(id)
+        if (!profile) return errorResponse("Profile not found", "NOT_FOUND", 404)
+        return json(profile)
+      }
+      if (method === "PUT") {
+        if (!deps.profiles) return errorResponse("Profiles not available", "NOT_AVAILABLE", 500)
+        const body = await req.json()
+        deps.profiles.update(id, body)
+        return json({ ok: true })
+      }
+      if (method === "DELETE") {
+        deps.profiles?.remove(id)
+        return json({ ok: true })
+      }
     }
 
     return errorResponse("Not found", "NOT_FOUND", 404)

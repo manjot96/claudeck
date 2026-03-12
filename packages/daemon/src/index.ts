@@ -8,6 +8,7 @@ import { createStorage } from "./storage"
 import { join } from "node:path"
 import { createRouter } from "./router"
 import { createWsHandler, type WsData } from "./websocket"
+import { createProfileManager } from "./profiles"
 import { advertise, getMdnsName, stopAdvertising } from "./mdns"
 
 // Parse CLI args
@@ -25,11 +26,13 @@ const dbPath = join(home, ".claudeck", "sessions.db")
 const storage = createStorage(dbPath)
 storage.deleteOlderThan(config.retentionDays ?? 30)
 const sessions = createSessionManager({ storage })
+const profiles = createProfileManager(storage)
 const wsHandler = createWsHandler()
 
 const router = createRouter({
   auth,
   sessions,
+  profiles,
   hostname: hostname(),
   mdnsName: getMdnsName(),
 })
