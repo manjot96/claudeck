@@ -4,7 +4,13 @@ import StreamOutput from "../components/StreamOutput"
 import SessionStats from "../components/SessionStats"
 import ToolSummaryBar from "../components/ToolSummaryBar"
 import InputBar from "../components/InputBar"
+import SessionChanges from "../components/SessionChanges"
 import { useNotificationSound } from "../hooks/useNotificationSound"
+import {
+  exportToMarkdown,
+  downloadMarkdown,
+  shareMarkdown,
+} from "../utils/exportMarkdown"
 
 type Props = {
   session: Session
@@ -142,6 +148,13 @@ export default function SessionScreen({
     await onStop(session.id)
   }
 
+  async function handleExport() {
+    const md = exportToMarkdown(session, events)
+    const filename = `claudeck-${session.id.slice(0, 8)}.md`
+    const shared = await shareMarkdown(filename, md)
+    if (!shared) downloadMarkdown(filename, md)
+  }
+
   const truncatedPrompt = session.prompt.length > 60
     ? session.prompt.slice(0, 60) + "\u2026"
     : session.prompt
@@ -201,7 +214,20 @@ export default function SessionScreen({
           </div>
         </div>
 
-        {/* Stop button */}
+        {/* Export + Stop buttons */}
+        {ended && events.length > 0 && (
+          <button
+            onClick={handleExport}
+            className="flex items-center justify-center bg-surface-overlay/50 rounded-full p-2
+                       min-h-[44px] min-w-[44px] shrink-0 mr-2"
+            aria-label="Export"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 3v10M6 9l4 4 4-4" />
+              <path d="M3 14v2a2 2 0 002 2h10a2 2 0 002-2v-2" />
+            </svg>
+          </button>
+        )}
         {!ended ? (
           <button
             onClick={handleStop}
@@ -228,7 +254,11 @@ export default function SessionScreen({
 
       {/* Output stream */}
       <div className="flex-1 min-h-0 pb-20">
-        <StreamOutput events={displayEvents.length > 0 ? displayEvents : events} />
+        <StreamOutput
+          events={displayEvents.length > 0 ? displayEvents : events}
+          typewriterEnabled={settings.typewriterEffect ?? false}
+        />
+        {ended && <div className="px-4"><SessionChanges events={events} /></div>}
       </div>
 
       {/* Input bar for follow-up */}

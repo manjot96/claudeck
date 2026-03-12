@@ -1,14 +1,16 @@
-import { useRef, useEffect, useState, useCallback } from "react"
+import { useRef, useEffect, useState, useCallback, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import type { ClaudeStreamEvent, DisplayEvent } from "@claudeck/shared"
+import { useTypewriter } from "../hooks/useTypewriter"
 
 type Props = {
   events: DisplayEvent[]
+  typewriterEnabled?: boolean
 }
 
-export default function StreamOutput({ events }: Props) {
+export default function StreamOutput({ events, typewriterEnabled }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -33,11 +35,16 @@ export default function StreamOutput({ events }: Props) {
       className="flex-1 overflow-y-auto px-4 pt-4 pb-24 font-mono text-sm"
     >
       {events.length === 0 && <EmptyState />}
-      {events.map((event, i) => (
-        "_display" in event && event._display === "user-input"
-          ? <UserInputBlock key={i} event={event} />
-          : <EventBlock key={i} event={event as ClaudeStreamEvent} />
-      ))}
+      {events.map((event, i) => {
+        if ("_display" in event && event._display === "user-input") {
+          return <UserInputBlock key={i} event={event} />
+        }
+        const ce = event as ClaudeStreamEvent
+        const isLatestAssistant = ce.type === "assistant" && !events.slice(i + 1).some(
+          (e) => !("_display" in e) && (e as ClaudeStreamEvent).type === "assistant"
+        )
+        return <EventBlock key={i} event={ce} isLatest={isLatestAssistant} typewriterEnabled={typewriterEnabled} />
+      })}
       <div ref={bottomRef} />
 
       <div
@@ -76,9 +83,9 @@ function EmptyState() {
   )
 }
 
-function EventBlock({ event }: { event: ClaudeStreamEvent }) {
+function EventBlock({ event, isLatest, typewriterEnabled }: { event: ClaudeStreamEvent; isLatest?: boolean; typewriterEnabled?: boolean }) {
   if (event.type === "assistant") {
-    return <AssistantBlock event={event} />
+    return <AssistantBlock event={event} isLatest={isLatest} typewriterEnabled={typewriterEnabled} />
   }
 
   if (event.type === "tool_use") {
@@ -132,13 +139,14 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function AssistantBlock({ event }: { event: ClaudeStreamEvent }) {
+function AssistantBlock({ event, isLatest, typewriterEnabled }: { event: ClaudeStreamEvent; isLatest?: boolean; typewriterEnabled?: boolean }) {
   const message = event.message as Record<string, unknown> | undefined
   const content = message?.content as Array<{ type: string; text?: string }> | undefined
-  const text = content
+  const rawText = content
     ?.filter((c) => c.type === "text")
     .map((c) => c.text)
     .join("") ?? JSON.stringify(event)
+  const text = useTypewriter(rawText, !!(isLatest && typewriterEnabled))
 
   return (
     <div className="bg-surface-raised/30 rounded-xl p-4 mb-3">
