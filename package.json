@@ -1,0 +1,12 @@
+{
+  "name": "claudeck",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:daemon": "bun run --cwd packages/daemon dev",
+    "dev:web": "bun run --cwd packages/web dev",
+    "build:web": "bun run --cwd packages/web build",
+    "test": "bun run --filter '*' test",
+    "start": "bun run --cwd packages/daemon start"
+  }
+}
