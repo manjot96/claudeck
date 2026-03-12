@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react"
-import type { Session, WsServerMessage, ClaudeStreamEvent } from "@claudeck/shared"
+import type { Session, WsServerMessage, ClaudeStreamEvent, Settings } from "@claudeck/shared"
 import StreamOutput from "../components/StreamOutput"
+import SessionStats from "../components/SessionStats"
+import ToolSummaryBar from "../components/ToolSummaryBar"
+import { useNotificationSound } from "../hooks/useNotificationSound"
 
 type Props = {
   session: Session
@@ -10,6 +13,8 @@ type Props = {
   getSessionEvents?: (id: string) => Promise<ClaudeStreamEvent[]>
   onStop: (sessionId: string) => Promise<void>
   onBack: () => void
+  settings: Settings
+  onNotify?: (title: string, body: string, sessionId: string) => void
 }
 
 function formatElapsed(seconds: number): string {
@@ -27,13 +32,18 @@ export default function SessionScreen({
   getSessionEvents,
   onStop,
   onBack,
+  settings,
+  onNotify,
 }: Props) {
   const [events, setEvents] = useState<ClaudeStreamEvent[]>([])
   const [ended, setEnded] = useState(session.status === "ended")
   const [exitCode, setExitCode] = useState<number | null>(session.exitCode ?? null)
+  const [tokenUsage, setTokenUsage] = useState(session.tokenUsage)
+  const [estimatedCost, setEstimatedCost] = useState(session.estimatedCost)
   const [stopping, setStopping] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sound = useNotificationSound(settings.soundEnabled, settings.hapticEnabled)
 
   // Elapsed timer
   useEffect(() => {
@@ -85,9 +95,22 @@ export default function SessionScreen({
       if (msg.type === "session-ended" && msg.sessionId === session.id) {
         setEnded(true)
         setExitCode(msg.exitCode)
+        // Extract token data if available in the message
+        const msgAny = msg as Record<string, unknown>
+        if (msgAny.tokenUsage) setTokenUsage(msgAny.tokenUsage as typeof tokenUsage)
+        if (msgAny.estimatedCost != null) setEstimatedCost(msgAny.estimatedCost as number)
+        // Play sound/haptic notification
+        sound.play(msg.exitCode === 0 ? "success" : "failure")
+        // Browser push notification
+        const truncated = session.prompt.length > 60 ? session.prompt.slice(0, 60) + "\u2026" : session.prompt
+        onNotify?.(
+          msg.exitCode === 0 ? "Session Complete" : "Session Failed",
+          truncated,
+          session.id
+        )
       }
     })
-  }, [session.id, wsOnMessage])
+  }, [session.id, wsOnMessage, sound, onNotify, session.prompt])
 
   async function handleStop() {
     setStopping(true)
@@ -175,6 +198,9 @@ export default function SessionScreen({
       {/* Spacer for fixed header */}
       <div style={{ height: 60 }} className="shrink-0" />
 
+      {/* Tool summary bar */}
+      <ToolSummaryBar events={events} />
+
       {/* Output stream */}
       <div className="flex-1 min-h-0 pb-20">
         <StreamOutput events={events} />
@@ -183,20 +209,23 @@ export default function SessionScreen({
       {/* Ended summary footer */}
       {ended && (
         <div className="fixed bottom-20 left-0 right-0 z-30 mx-4">
-          <div className="bg-surface-raised rounded-t-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  exitCode === 0
-                    ? "bg-green-500/20 text-success"
-                    : "bg-red-500/20 text-danger"
-                }`}
-              >
-                exit {exitCode}
-              </span>
-              <span className="text-sm text-slate-300">Session ended</span>
+          <div className="bg-surface-raised rounded-t-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    exitCode === 0
+                      ? "bg-green-500/20 text-success"
+                      : "bg-red-500/20 text-danger"
+                  }`}
+                >
+                  exit {exitCode}
+                </span>
+                <span className="text-sm text-slate-300">Session ended</span>
+              </div>
+              <span className="text-xs text-slate-500">{formatElapsed(elapsed)}</span>
             </div>
-            <span className="text-xs text-slate-500">{formatElapsed(elapsed)}</span>
+            <SessionStats tokenUsage={tokenUsage} estimatedCost={estimatedCost} />
           </div>
         </div>
       )}

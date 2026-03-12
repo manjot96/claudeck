@@ -4,6 +4,8 @@ import { useConnection } from "./hooks/useConnection"
 import { useApi } from "./hooks/useApi"
 import { useWebSocket } from "./hooks/useWebSocket"
 import { useSettings } from "./hooks/useSettings"
+import { useTheme } from "./hooks/useTheme"
+import { useNotifications } from "./hooks/useNotifications"
 import ConnectScreen from "./screens/ConnectScreen"
 import ProjectsScreen from "./screens/ProjectsScreen"
 import ProjectScreen from "./screens/ProjectScreen"
@@ -24,6 +26,8 @@ export default function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>({ name: "projects" })
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const { settings, update: updateSettings, reset: resetSettings } = useSettings()
+  useTheme(settings.theme)
+  const notifications = useNotifications(settings.notificationsEnabled)
   const [daemonInfo, setDaemonInfo] = useState<DaemonInfo | null>(null)
 
   // Message handlers for WebSocket
@@ -86,6 +90,7 @@ export default function App(): React.ReactElement {
           onSessionStarted={(session) => {
             setActiveSession(session)
             setScreen({ name: "session", session })
+            notifications.requestPermission()
           }}
           onWatchSession={(session) => {
             setActiveSession(session)
@@ -106,6 +111,8 @@ export default function App(): React.ReactElement {
             await api.killSession(id)
           }}
           onBack={() => setScreen({ name: "projects" })}
+          settings={settings}
+          onNotify={notifications.notify}
         />
       )}
 

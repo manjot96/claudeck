@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
 import { usePullToRefresh } from "../hooks/usePullToRefresh"
+import SearchBar from "../components/SearchBar"
+import FilterChips from "../components/FilterChips"
 
 type Props = {
   project: Project
@@ -13,6 +15,12 @@ type Props = {
 }
 
 const MAX_PROMPT_LENGTH = 10000
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
 
 function formatRelativeTime(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
@@ -51,6 +59,9 @@ export default function ProjectScreen({
   const [error, setError] = useState("")
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [recentSessions, setRecentSessions] = useState<Session[]>([])
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "longest">("newest")
 
   const fetchSessions = useCallback(async () => {
     await getSessions().then((sessions) => {
@@ -71,6 +82,41 @@ export default function ProjectScreen({
   const { containerProps, refreshing, pullDistance } = usePullToRefresh({
     onRefresh: fetchSessions,
   })
+
+  const filterOptions = [
+    { value: "all", label: "All" },
+    { value: "completed", label: "Completed" },
+    { value: "failed", label: "Failed" },
+  ]
+
+  const filteredSessions = useMemo(() => {
+    let filtered = recentSessions.filter((s) => s.status === "ended")
+    if (search) {
+      const q = search.toLowerCase()
+      filtered = filtered.filter((s) => s.prompt.toLowerCase().includes(q))
+    }
+    if (statusFilter === "completed") filtered = filtered.filter((s) => s.exitCode === 0)
+    if (statusFilter === "failed") filtered = filtered.filter((s) => s.exitCode !== 0)
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "oldest") return a.startedAt.localeCompare(b.startedAt)
+      if (sortBy === "longest") {
+        const durA = a.endedAt ? new Date(a.endedAt).getTime() - new Date(a.startedAt).getTime() : Infinity
+        const durB = b.endedAt ? new Date(b.endedAt).getTime() - new Date(b.startedAt).getTime() : Infinity
+        return durB - durA
+      }
+      return b.startedAt.localeCompare(a.startedAt)
+    })
+  }, [recentSessions, search, statusFilter, sortBy])
+
+  const totals = useMemo(() => {
+    let tokens = 0, cost = 0
+    for (const s of recentSessions) {
+      if (s.tokenUsage) tokens += s.tokenUsage.input + s.tokenUsage.output
+      if (s.estimatedCost) cost += s.estimatedCost
+    }
+    return { tokens, cost }
+  }, [recentSessions])
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault()
@@ -231,10 +277,27 @@ export default function ProjectScreen({
             </span>
           </div>
 
+          {totals.tokens > 0 && (
+            <div className="text-xs text-slate-500 px-1 mb-2">
+              Project total: {formatTokens(totals.tokens)} tokens · ${totals.cost.toFixed(4)}
+            </div>
+          )}
+
+          <div className="space-y-3 mb-3">
+            <SearchBar value={search} onChange={setSearch} placeholder="Search sessions..." />
+            <div className="flex items-center gap-2">
+              <FilterChips options={filterOptions} active={statusFilter} onChange={setStatusFilter} />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="bg-surface-overlay text-slate-200 text-xs rounded-lg px-2 py-1.5 border border-surface-overlay ml-auto">
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="longest">Longest</option>
+              </select>
+            </div>
+          </div>
+
           <div className="space-y-3">
-            {recentSessions
-              .filter((s) => s.status === "ended")
-              .map((session) => (
+            {filteredSessions.map((session) => (
                 <button
                   key={session.id}
                   onClick={() => onWatchSession(session)}

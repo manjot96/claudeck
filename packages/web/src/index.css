@@ -11,6 +11,22 @@
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
 }
 
+:root.light {
+  --color-surface: #f8fafc;
+  --color-surface-raised: #ffffff;
+  --color-surface-overlay: #e2e8f0;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+}
+
+:root.light .text-slate-100 { color: #1e293b; }
+:root.light .text-slate-200 { color: #334155; }
+:root.light .text-slate-300 { color: #475569; }
+:root.light .text-slate-400 { color: #64748b; }
+:root.light .text-slate-500 { color: #64748b; }
+
 body {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);

@@ -118,6 +118,20 @@ export function createSessionManager(opts: ManagerOpts = {}) {
             if (managed) {
               managed.eventBuffer.push(event)
             }
+            // Extract token usage from result events
+            if (event.type === "result") {
+              const usage = (event as Record<string, unknown>).usage as Record<string, number> | undefined
+              if (usage && managed) {
+                managed.session.tokenUsage = {
+                  input: usage.input_tokens ?? 0,
+                  output: usage.output_tokens ?? 0,
+                  cacheRead: usage.cache_read_input_tokens ?? 0,
+                  cacheWrite: usage.cache_creation_input_tokens ?? 0,
+                }
+                managed.session.estimatedCost =
+                  (managed.session.tokenUsage.input * 3 + managed.session.tokenUsage.output * 15) / 1_000_000
+              }
+            }
             for (const handler of outputHandlers) {
               handler(sessionId, event)
             }
@@ -158,6 +172,8 @@ export function createSessionManager(opts: ManagerOpts = {}) {
         status: "ended",
         exitCode,
         endedAt: managed?.session.endedAt,
+        tokenUsage: managed?.session.tokenUsage,
+        estimatedCost: managed?.session.estimatedCost,
       })
     }
 
