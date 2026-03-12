@@ -1,0 +1,14 @@
+{
+  "name": "@claudeck/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@claudeck/shared": "workspace:*",
+    "bonjour-service": "^1.3.0"
+  }
+}
