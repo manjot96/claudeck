@@ -3,6 +3,8 @@ import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
 import { usePullToRefresh } from "../hooks/usePullToRefresh"
 import SearchBar from "../components/SearchBar"
 import FilterChips from "../components/FilterChips"
+import TemplatesDrawer from "../components/TemplatesDrawer"
+import { useTemplates } from "../hooks/useTemplates"
 
 type Props = {
   project: Project
@@ -62,6 +64,8 @@ export default function ProjectScreen({
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "longest">("newest")
+  const [showTemplates, setShowTemplates] = useState(false)
+  const { templates, add: addTemplate, remove: removeTemplate, use: useTemplate } = useTemplates(project.id)
 
   const fetchSessions = useCallback(async () => {
     await getSessions().then((sessions) => {
@@ -214,11 +218,44 @@ export default function ProjectScreen({
 
       {/* New Session section */}
       <form onSubmit={handleStart} className="space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-slate-100">
-            <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <h2 className="text-lg font-semibold text-slate-100">New Session</h2>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-slate-100">
+              <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <h2 className="text-lg font-semibold text-slate-100">New Session</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {prompt.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  const name = prompt.trim().slice(0, 50)
+                  addTemplate(name, prompt.trim(), project.id)
+                }}
+                className="text-xs text-slate-400 hover:text-accent transition-colors
+                           min-h-[36px] px-2 flex items-center gap-1"
+                title="Save as template"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" />
+                </svg>
+                Save
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowTemplates(true)}
+              className="text-xs text-slate-400 hover:text-accent transition-colors
+                         min-h-[36px] px-2 flex items-center gap-1"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="2" width="12" height="12" rx="2" />
+                <path d="M5 5h6M5 8h6M5 11h3" />
+              </svg>
+              Templates
+            </button>
+          </div>
         </div>
 
         <div className="relative">
@@ -330,6 +367,18 @@ export default function ProjectScreen({
           </div>
         </div>
       )}
+
+      <TemplatesDrawer
+        open={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        templates={templates}
+        onSelect={(t) => {
+          useTemplate(t.id)
+          setPrompt(t.prompt)
+          setShowTemplates(false)
+        }}
+        onDelete={removeTemplate}
+      />
     </div>
   )
 }

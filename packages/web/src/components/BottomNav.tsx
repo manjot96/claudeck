@@ -4,6 +4,7 @@ type Props = {
   active: Screen
   onNavigate: (screen: Screen) => void
   hasActiveSession: boolean
+  activeSessionCount?: number
 }
 
 function FolderIcon({ className }: { className?: string }) {
@@ -35,7 +36,7 @@ function TerminalIcon({ className }: { className?: string }) {
   )
 }
 
-export default function BottomNav({ active, onNavigate, hasActiveSession }: Props): React.ReactElement {
+export default function BottomNav({ active, onNavigate, hasActiveSession, activeSessionCount }: Props): React.ReactElement {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 bg-surface-raised/95 backdrop-blur-md border-t border-surface-overlay flex justify-around"
@@ -58,8 +59,15 @@ export default function BottomNav({ active, onNavigate, hasActiveSession }: Prop
             ${active === "session" ? "text-accent" : "text-slate-500"}`}
         >
           <div className={`w-1.5 h-1.5 rounded-full mb-[-2px] transition-opacity duration-150 ${active === "session" ? "bg-accent opacity-100" : "opacity-0"}`} />
-          <TerminalIcon />
-          <span>Session</span>
+          <div className="relative">
+            <TerminalIcon />
+            {(activeSessionCount ?? 0) > 1 && (
+              <span className="absolute -top-1.5 -right-2 bg-accent text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {activeSessionCount}
+              </span>
+            )}
+          </div>
+          <span>Session{(activeSessionCount ?? 0) > 1 ? "s" : ""}</span>
         </button>
       )}
 

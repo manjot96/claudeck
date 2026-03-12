@@ -10,6 +10,7 @@ import ConnectScreen from "./screens/ConnectScreen"
 import ProjectsScreen from "./screens/ProjectsScreen"
 import ProjectScreen from "./screens/ProjectScreen"
 import SessionScreen from "./screens/SessionScreen"
+import SessionListScreen from "./screens/SessionListScreen"
 import SettingsScreen from "./screens/SettingsScreen"
 import ConnectionBanner from "./components/ConnectionBanner"
 import BottomNav from "./components/BottomNav"
@@ -18,13 +19,15 @@ type Screen =
   | { name: "projects" }
   | { name: "project"; project: Project }
   | { name: "session"; session: Session }
+  | { name: "sessions" }
   | { name: "settings" }
 
 export default function App(): React.ReactElement {
   const conn = useConnection()
   const api = useApi(conn.host, conn.token)
   const [screen, setScreen] = useState<Screen>({ name: "projects" })
-  const [activeSession, setActiveSession] = useState<Session | null>(null)
+  const [activeSessions, setActiveSessions] = useState<Session[]>([])
+  const activeSession = activeSessions.length > 0 ? activeSessions[activeSessions.length - 1] : null
   const { settings, update: updateSettings, reset: resetSettings } = useSettings()
   useTheme(settings.theme)
   const notifications = useNotifications(settings.notificationsEnabled)
@@ -34,6 +37,10 @@ export default function App(): React.ReactElement {
   const messageHandlers = useRef(new Set<(msg: WsServerMessage) => void>())
 
   const handleWsMessage = useCallback((msg: WsServerMessage) => {
+    // Track session lifecycle for active sessions list
+    if (msg.type === "session-ended") {
+      setActiveSessions((prev) => prev.filter((s) => s.id !== msg.sessionId))
+    }
     for (const handler of messageHandlers.current) {
       handler(msg)
     }
@@ -88,14 +95,24 @@ export default function App(): React.ReactElement {
           getAllSessions={api.getAllSessions}
           createSession={api.createSession}
           onSessionStarted={(session) => {
-            setActiveSession(session)
+            setActiveSessions((prev) => [...prev.filter((s) => s.id !== session.id), session])
             setScreen({ name: "session", session })
             notifications.requestPermission()
           }}
           onWatchSession={(session) => {
-            setActiveSession(session)
+            if (session.status === "running") {
+              setActiveSessions((prev) => [...prev.filter((s) => s.id !== session.id), session])
+            }
             setScreen({ name: "session", session })
           }}
+          onBack={() => setScreen({ name: "projects" })}
+        />
+      )}
+
+      {screen.name === "sessions" && (
+        <SessionListScreen
+          sessions={activeSessions}
+          onSelect={(session) => setScreen({ name: "session", session })}
           onBack={() => setScreen({ name: "projects" })}
         />
       )}
@@ -131,13 +148,20 @@ export default function App(): React.ReactElement {
       )}
 
       <BottomNav
-        active={screen.name === "session" ? "session" : screen.name === "settings" ? "settings" : "projects"}
+        active={screen.name === "session" || screen.name === "sessions" ? "session" : screen.name === "settings" ? "settings" : "projects"}
         onNavigate={(s) => {
           if (s === "projects") setScreen({ name: "projects" })
-          if (s === "session" && activeSession) setScreen({ name: "session", session: activeSession })
+          if (s === "session") {
+            if (activeSessions.length > 1) {
+              setScreen({ name: "sessions" })
+            } else if (activeSession) {
+              setScreen({ name: "session", session: activeSession })
+            }
+          }
           if (s === "settings") setScreen({ name: "settings" })
         }}
-        hasActiveSession={activeSession !== null}
+        hasActiveSession={activeSessions.length > 0}
+        activeSessionCount={activeSessions.length}
       />
     </div>
   )

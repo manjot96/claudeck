@@ -1,8 +1,8 @@
 # ClauDeck Progress
 
-## Status: Wave 3 In Progress
+## Status: Wave 3 Complete
 
-V2 implementation — Waves 1-2 complete, Wave 3 partially done.
+V2 implementation — Waves 1-3 complete, Wave 4 not started.
 
 ## Completed Tasks
 
@@ -12,14 +12,13 @@ V2 implementation — Waves 1-2 complete, Wave 3 partially done.
 
 ### V2 Wave 2: Settings + Storage dependent (Tasks 10-17) - COMPLETE
 
-### V2 Wave 3: Independent UI Features (Tasks 18-23)
+### V2 Wave 3: Independent UI Features (Tasks 18-23) - COMPLETE
 - [x] Task 18: Interactive input — shared types (DisplayEvent, WS messages)
 - [x] Task 19: Interactive input — daemon (sendInput, stdin pipe)
 - [x] Task 20: Interactive input — PWA (InputBar, DisplayEvent in StreamOutput)
 - [x] Task 21: Multiple concurrent sessions — daemon (maxConcurrent)
-- [ ] Task 22: Multiple concurrent sessions — PWA (SessionListScreen)
-- [ ] Task 23: Prompt templates (useTemplates + TemplatesDrawer)
-- [ ] Wave 3 E2E
+- [x] Task 22: Multiple concurrent sessions — PWA (SessionListScreen + BottomNav badge)
+- [x] Task 23: Prompt templates (useTemplates + TemplatesDrawer)
 
 ### V2 Wave 4 (Tasks 24-34): Not started
 
@@ -29,7 +28,5 @@ V2 implementation — Waves 1-2 complete, Wave 3 partially done.
 - Web builds successfully
 
 ## Next Steps
-- Task 22: SessionListScreen + BottomNav badge for multi-session
-- Task 23: Prompt templates (useTemplates + TemplatesDrawer)
 - Wave 3 E2E verification
-- Then Wave 4 (6 remaining features)
+- Wave 4 (Tasks 24-34): Markdown export, session diff, agent profiles, machines screen, mDNS, streaming typewriter, TLS
