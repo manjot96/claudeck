@@ -4,6 +4,8 @@ import { existsSync } from "node:fs"
 import { loadConfig } from "./config"
 import { createAuthChecker } from "./auth"
 import { createSessionManager } from "./sessions"
+import { createStorage } from "./storage"
+import { join } from "node:path"
 import { createRouter } from "./router"
 import { createWsHandler, type WsData } from "./websocket"
 import { advertise, getMdnsName, stopAdvertising } from "./mdns"
@@ -18,7 +20,11 @@ const bindOverride = bindIdx >= 0 ? args[bindIdx + 1] : undefined
 // Initialize modules
 const config = loadConfig(undefined, { port: portOverride, bind: bindOverride })
 const auth = createAuthChecker(config.token)
-const sessions = createSessionManager()
+const home = process.env.HOME ?? process.env.USERPROFILE ?? "~"
+const dbPath = join(home, ".claudeck", "sessions.db")
+const storage = createStorage(dbPath)
+storage.deleteOlderThan(config.retentionDays ?? 30)
+const sessions = createSessionManager({ storage })
 const wsHandler = createWsHandler()
 
 const router = createRouter({
@@ -136,6 +142,7 @@ async function shutdown(): Promise<void> {
 
   wsHandler.closeAll()
   await stopAdvertising()
+  storage.close()
   server.stop()
   process.exit(0)
 }

@@ -34,7 +34,12 @@ export function useApi(host: string | null, token: string | null) {
   )
 
   const getAllSessions = useCallback(
-    () => fetchApi<Session[]>("/api/sessions?all=true"),
+    (opts?: { offset?: number; limit?: number }) => {
+      const params = new URLSearchParams({ all: "true" })
+      if (opts?.offset) params.set("offset", String(opts.offset))
+      if (opts?.limit) params.set("limit", String(opts.limit))
+      return fetchApi<Session[]>(`/api/sessions?${params}`)
+    },
     [fetchApi]
   )
 

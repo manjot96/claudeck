@@ -1,5 +1,9 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { createSessionManager } from "./sessions"
+import { createStorage } from "./storage"
+import { mkdtempSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 
 describe("createSessionManager", () => {
   let mgr: ReturnType<typeof createSessionManager>
@@ -103,5 +107,33 @@ describe("createSessionManager", () => {
     await new Promise((r) => setTimeout(r, 200))
     expect(ended).toHaveLength(1)
     expect(ended[0].exitCode).toBe(0)
+  })
+})
+
+describe("session manager with storage", () => {
+  let tmpDir: string
+  let storage: ReturnType<typeof createStorage>
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "sessions-"))
+    storage = createStorage(join(tmpDir, "test.db"))
+  })
+  afterEach(() => { storage.close(); rmSync(tmpDir, { recursive: true }) })
+
+  test("persists session to storage on create", async () => {
+    const mgr = createSessionManager({ storage })
+    const s = mgr.create({ projectPath: "/tmp", prompt: "test", command: ["echo", '{"type":"result","status":"success"}'] })
+    await new Promise((r) => mgr.onEnd(r))
+    const stored = storage.getSession(s.id)
+    expect(stored).toBeTruthy()
+    expect(stored!.prompt).toBe("test")
+  })
+
+  test("listAll returns sessions from storage", async () => {
+    const mgr = createSessionManager({ storage })
+    mgr.create({ projectPath: "/tmp", prompt: "test1", command: ["echo", '{"type":"result"}'] })
+    await new Promise((r) => mgr.onEnd(r))
+    const all = mgr.listAll()
+    expect(all.length).toBeGreaterThanOrEqual(1)
   })
 })

@@ -1,5 +1,6 @@
 import type { Subprocess } from "bun"
 import type { Session, ClaudeStreamEvent } from "@claudeck/shared"
+import type { createStorage } from "./storage"
 
 type ManagedSession = {
   session: Session
@@ -24,7 +25,12 @@ type CreateOpts = {
 type OutputHandler = (sessionId: string, data: ClaudeStreamEvent) => void
 type EndHandler = (sessionId: string, exitCode: number) => void
 
-export function createSessionManager() {
+type ManagerOpts = {
+  storage?: ReturnType<typeof createStorage>
+  maxConcurrent?: number
+}
+
+export function createSessionManager(opts: ManagerOpts = {}) {
   const active = new Map<string, ManagedSession>()
   const ended = new Map<string, SessionState>()
   const history: Session[] = [] // all sessions, most recent first
@@ -32,18 +38,18 @@ export function createSessionManager() {
   const outputHandlers: OutputHandler[] = []
   const endHandlers: EndHandler[] = []
 
-  function create(opts: CreateOpts): Session {
+  function create(createOpts: CreateOpts): Session {
     if (active.size > 0) {
       throw new Error("SESSION_ACTIVE")
     }
 
     const id = crypto.randomUUID()
-    const command = opts.command ?? [
+    const command = createOpts.command ?? [
       "claude",
       "--output-format",
       "stream-json",
       "-p",
-      opts.prompt,
+      createOpts.prompt,
     ]
 
     // Build a clean env: inherit everything but strip CLAUDECODE so
@@ -54,20 +60,24 @@ export function createSessionManager() {
     const proc = Bun.spawn(command, {
       stdout: "pipe",
       stderr: "pipe",
-      cwd: opts.projectPath,
+      cwd: createOpts.projectPath,
       env: cleanEnv,
     })
 
     const session: Session = {
       id,
-      projectId: `-${opts.projectPath.replace(/^\//, "").replace(/\//g, "-")}`,
-      prompt: opts.prompt,
+      projectId: `-${createOpts.projectPath.replace(/^\//, "").replace(/\//g, "-")}`,
+      prompt: createOpts.prompt,
       status: "running",
       startedAt: new Date().toISOString(),
     }
 
     active.set(id, { session, process: proc, eventBuffer: [] })
     history.unshift(session) // add to front (most recent first)
+
+    if (opts.storage) {
+      opts.storage.saveSession(session)
+    }
 
     // Stream stdout in background
     streamOutput(id, proc)
@@ -79,6 +89,16 @@ export function createSessionManager() {
     const reader = proc.stdout!.getReader()
     const decoder = new TextDecoder()
     let buffer = ""
+
+    let eventBatch: ClaudeStreamEvent[] = []
+    let batchSequence = 0
+    const flushInterval = opts.storage ? setInterval(() => {
+      if (eventBatch.length > 0 && opts.storage) {
+        opts.storage.saveEvents(sessionId, eventBatch, batchSequence)
+        batchSequence += eventBatch.length
+        eventBatch = []
+      }
+    }, 100) : null
 
     try {
       while (true) {
@@ -101,6 +121,14 @@ export function createSessionManager() {
             for (const handler of outputHandlers) {
               handler(sessionId, event)
             }
+            if (opts.storage) {
+              eventBatch.push(event)
+              if (eventBatch.length >= 50) {
+                opts.storage.saveEvents(sessionId, eventBatch, batchSequence)
+                batchSequence += eventBatch.length
+                eventBatch = []
+              }
+            }
           } catch {
             // skip non-JSON lines
           }
@@ -108,6 +136,11 @@ export function createSessionManager() {
       }
     } catch {
       // stream closed
+    }
+
+    if (flushInterval) clearInterval(flushInterval)
+    if (opts.storage && eventBatch.length > 0) {
+      opts.storage.saveEvents(sessionId, eventBatch, batchSequence)
     }
 
     const exitCode = await proc.exited
@@ -118,6 +151,14 @@ export function createSessionManager() {
       managed.session.exitCode = exitCode
       managed.session.endedAt = new Date().toISOString()
       active.delete(sessionId)
+    }
+
+    if (opts.storage) {
+      opts.storage.updateSession(sessionId, {
+        status: "ended",
+        exitCode,
+        endedAt: managed?.session.endedAt,
+      })
     }
 
     // Preserve ended session state for late subscribers
@@ -144,7 +185,10 @@ export function createSessionManager() {
     return Array.from(active.values()).map((m) => m.session)
   }
 
-  function listAll(): Session[] {
+  function listAll(listOpts: { offset?: number; limit?: number } = {}): Session[] {
+    if (opts.storage) {
+      return opts.storage.listSessions({ offset: listOpts.offset, limit: listOpts.limit })
+    }
     return history.map((s) => ({ ...s }))
   }
 
@@ -193,6 +237,19 @@ export function createSessionManager() {
         events: [...archived],
         ended: true,
         exitCode: hist?.exitCode ?? null,
+      }
+    }
+
+    // Fall back to storage for archived sessions
+    if (opts.storage) {
+      const storedSession = opts.storage.getSession(sessionId)
+      if (storedSession) {
+        const events = opts.storage.getEvents(sessionId)
+        return {
+          events,
+          ended: storedSession.status === "ended",
+          exitCode: storedSession.exitCode ?? null,
+        }
       }
     }
 

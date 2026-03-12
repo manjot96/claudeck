@@ -73,7 +73,9 @@ export function createRouter(deps: RouterDeps) {
 
     if (method === "GET" && path === "/api/sessions") {
       const all = url.searchParams.get("all") === "true"
-      return json(all ? deps.sessions.listAll() : deps.sessions.list())
+      const offset = parseInt(url.searchParams.get("offset") ?? "0")
+      const limit = parseInt(url.searchParams.get("limit") ?? "100")
+      return json(all ? deps.sessions.listAll({ offset, limit }) : deps.sessions.list())
     }
 
     // GET /api/sessions/:id/events — fetch archived events for a session
