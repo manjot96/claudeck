@@ -9,6 +9,8 @@ type Props = {
   mdnsName: string | null
   daemonInfo: DaemonInfo | null
   onDisconnect: () => void
+  onNavigateProfiles?: () => void
+  onNavigateMachines?: () => void
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -55,7 +57,7 @@ function Select<T extends string>({ label, value, options, onChange }: {
 }
 
 export default function SettingsScreen({
-  settings, onUpdate, onReset, host, token, mdnsName, daemonInfo, onDisconnect,
+  settings, onUpdate, onReset, host, token, mdnsName, daemonInfo, onDisconnect, onNavigateProfiles, onNavigateMachines,
 }: Props) {
   return (
     <div className="min-h-screen bg-surface p-6 pb-28">
@@ -85,6 +87,22 @@ export default function SettingsScreen({
         >
           Disconnect
         </button>
+      </div>
+
+      <SectionHeader title="Management" />
+      <div className="bg-surface-raised rounded-xl divide-y divide-surface-overlay">
+        {onNavigateProfiles && (
+          <button onClick={onNavigateProfiles} className="w-full flex items-center justify-between px-4 min-h-[48px] text-sm text-slate-200 hover:bg-surface-overlay/30 transition-colors">
+            <span>Agent Profiles</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="M6 4l4 4-4 4"/></svg>
+          </button>
+        )}
+        {onNavigateMachines && (
+          <button onClick={onNavigateMachines} className="w-full flex items-center justify-between px-4 min-h-[48px] text-sm text-slate-200 hover:bg-surface-overlay/30 transition-colors">
+            <span>Machines</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="M6 4l4 4-4 4"/></svg>
+          </button>
+        )}
       </div>
 
       <SectionHeader title="Notifications" />

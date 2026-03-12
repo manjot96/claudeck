@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
-import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
+import type { Project, Session, CreateSessionRequest, AgentProfile } from "@claudeck/shared"
 import { usePullToRefresh } from "../hooks/usePullToRefresh"
 import SearchBar from "../components/SearchBar"
 import FilterChips from "../components/FilterChips"
 import TemplatesDrawer from "../components/TemplatesDrawer"
+import ProfileSelector from "../components/ProfileSelector"
 import { useTemplates } from "../hooks/useTemplates"
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   getSessions: () => Promise<Session[]>
   getAllSessions: () => Promise<Session[]>
   createSession: (body: CreateSessionRequest) => Promise<Session>
+  getProfiles?: () => Promise<AgentProfile[]>
   onSessionStarted: (session: Session) => void
   onWatchSession: (session: Session) => void
   onBack: () => void
@@ -52,6 +54,7 @@ export default function ProjectScreen({
   getSessions,
   getAllSessions,
   createSession,
+  getProfiles,
   onSessionStarted,
   onWatchSession,
   onBack,
@@ -59,6 +62,8 @@ export default function ProjectScreen({
   const [prompt, setPrompt] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [profiles, setProfiles] = useState<AgentProfile[]>([])
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [recentSessions, setRecentSessions] = useState<Session[]>([])
   const [search, setSearch] = useState("")
@@ -81,7 +86,8 @@ export default function ProjectScreen({
 
   useEffect(() => {
     fetchSessions()
-  }, [fetchSessions])
+    if (getProfiles) getProfiles().then(setProfiles).catch(() => {})
+  }, [fetchSessions, getProfiles])
 
   const { containerProps, refreshing, pullDistance } = usePullToRefresh({
     onRefresh: fetchSessions,
@@ -257,6 +263,17 @@ export default function ProjectScreen({
             </button>
           </div>
         </div>
+
+        {profiles.length > 0 && (
+          <ProfileSelector
+            profiles={profiles}
+            selectedId={selectedProfileId}
+            onSelect={(p) => {
+              setSelectedProfileId(p?.id ?? null)
+              if (p?.promptTemplate) setPrompt(p.promptTemplate)
+            }}
+          />
+        )}
 
         <div className="relative">
           <textarea

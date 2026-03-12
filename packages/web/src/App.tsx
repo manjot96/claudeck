@@ -12,8 +12,11 @@ import ProjectScreen from "./screens/ProjectScreen"
 import SessionScreen from "./screens/SessionScreen"
 import SessionListScreen from "./screens/SessionListScreen"
 import SettingsScreen from "./screens/SettingsScreen"
+import ProfilesScreen from "./screens/ProfilesScreen"
+import MachinesScreen from "./screens/MachinesScreen"
 import ConnectionBanner from "./components/ConnectionBanner"
 import BottomNav from "./components/BottomNav"
+import { useMachines } from "./hooks/useMachines"
 
 type Screen =
   | { name: "projects" }
@@ -21,6 +24,8 @@ type Screen =
   | { name: "session"; session: Session }
   | { name: "sessions" }
   | { name: "settings" }
+  | { name: "profiles" }
+  | { name: "machines" }
 
 export default function App(): React.ReactElement {
   const conn = useConnection()
@@ -32,6 +37,7 @@ export default function App(): React.ReactElement {
   useTheme(settings.theme)
   const notifications = useNotifications(settings.notificationsEnabled)
   const [daemonInfo, setDaemonInfo] = useState<DaemonInfo | null>(null)
+  const machines = useMachines()
 
   // Message handlers for WebSocket
   const messageHandlers = useRef(new Set<(msg: WsServerMessage) => void>())
@@ -94,6 +100,7 @@ export default function App(): React.ReactElement {
           getSessions={api.getSessions}
           getAllSessions={api.getAllSessions}
           createSession={api.createSession}
+          getProfiles={api.getProfiles}
           onSessionStarted={(session) => {
             setActiveSessions((prev) => [...prev.filter((s) => s.id !== session.id), session])
             setScreen({ name: "session", session })
@@ -134,6 +141,31 @@ export default function App(): React.ReactElement {
         />
       )}
 
+      {screen.name === "profiles" && (
+        <ProfilesScreen
+          getProfiles={api.getProfiles}
+          createProfile={api.createProfile}
+          deleteProfile={api.deleteProfile}
+          onBack={() => setScreen({ name: "settings" })}
+        />
+      )}
+
+      {screen.name === "machines" && (
+        <MachinesScreen
+          machines={machines.machines}
+          activeId={machines.activeId}
+          status={machines.status}
+          onSelect={(id) => {
+            machines.setActiveId(id)
+            setScreen({ name: "projects" })
+          }}
+          onSetDefault={machines.setDefault}
+          onRemove={machines.remove}
+          onCheckStatus={machines.checkStatus}
+          onBack={() => setScreen({ name: "settings" })}
+        />
+      )}
+
       {screen.name === "settings" && (
         <SettingsScreen
           settings={settings}
@@ -144,6 +176,8 @@ export default function App(): React.ReactElement {
           mdnsName={conn.mdnsName ?? null}
           daemonInfo={daemonInfo}
           onDisconnect={conn.disconnect}
+          onNavigateProfiles={() => setScreen({ name: "profiles" })}
+          onNavigateMachines={() => setScreen({ name: "machines" })}
         />
       )}
 
