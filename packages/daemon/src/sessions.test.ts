@@ -60,4 +60,48 @@ describe("createSessionManager", () => {
   test("returns false for unknown session id", () => {
     expect(mgr.kill("nonexistent")).toBe(false)
   })
+
+  test("buffers output events and replays on getSessionState", async () => {
+    const events: Array<{ sessionId: string; data: unknown }> = []
+    mgr.onOutput((sessionId, data) => events.push({ sessionId, data }))
+
+    const session = mgr.create({
+      projectPath: "/tmp",
+      prompt: "test",
+      command: ["echo", '{"type":"result","status":"success"}'],
+    })
+
+    // Wait for process to finish
+    await new Promise((r) => setTimeout(r, 200))
+
+    // Events should have been broadcast
+    expect(events.length).toBeGreaterThan(0)
+
+    // getSessionState should return buffered events even after session ended
+    const state = mgr.getSessionState(session.id)
+    expect(state).not.toBeNull()
+    expect(state!.events.length).toBeGreaterThan(0)
+    expect(state!.ended).toBe(true)
+    expect(state!.exitCode).toBe(0)
+  })
+
+  test("getSessionState returns null for unknown session", () => {
+    const state = mgr.getSessionState("nonexistent")
+    expect(state).toBeNull()
+  })
+
+  test("end handler fires with exit code", async () => {
+    const ended: Array<{ sessionId: string; exitCode: number }> = []
+    mgr.onEnd((sessionId, exitCode) => ended.push({ sessionId, exitCode }))
+
+    mgr.create({
+      projectPath: "/tmp",
+      prompt: "test",
+      command: ["echo", '{"type":"result","status":"success"}'],
+    })
+
+    await new Promise((r) => setTimeout(r, 200))
+    expect(ended).toHaveLength(1)
+    expect(ended[0].exitCode).toBe(0)
+  })
 })

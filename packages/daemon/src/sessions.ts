@@ -4,7 +4,16 @@ import type { Session, ClaudeStreamEvent } from "@claudeck/shared"
 type ManagedSession = {
   session: Session
   process: Subprocess
+  eventBuffer: ClaudeStreamEvent[]
 }
+
+type SessionState = {
+  events: ClaudeStreamEvent[]
+  ended: boolean
+  exitCode: number | null
+}
+
+const ENDED_SESSION_TTL_MS = 5 * 60 * 1000 // keep ended sessions for 5 minutes
 
 type CreateOpts = {
   projectPath: string
@@ -17,6 +26,7 @@ type EndHandler = (sessionId: string, exitCode: number) => void
 
 export function createSessionManager() {
   const active = new Map<string, ManagedSession>()
+  const ended = new Map<string, SessionState>()
   const outputHandlers: OutputHandler[] = []
   const endHandlers: EndHandler[] = []
 
@@ -50,7 +60,7 @@ export function createSessionManager() {
       startedAt: new Date().toISOString(),
     }
 
-    active.set(id, { session, process: proc })
+    active.set(id, { session, process: proc, eventBuffer: [] })
 
     // Stream stdout in background
     streamOutput(id, proc)
@@ -76,6 +86,11 @@ export function createSessionManager() {
           if (!line.trim()) continue
           try {
             const event = JSON.parse(line) as ClaudeStreamEvent
+            // Buffer the event for late subscribers
+            const managed = active.get(sessionId)
+            if (managed) {
+              managed.eventBuffer.push(event)
+            }
             for (const handler of outputHandlers) {
               handler(sessionId, event)
             }
@@ -90,11 +105,25 @@ export function createSessionManager() {
 
     const exitCode = await proc.exited
     const managed = active.get(sessionId)
+    const bufferedEvents = managed?.eventBuffer ?? []
     if (managed) {
       managed.session.status = "ended"
       managed.session.exitCode = exitCode
       active.delete(sessionId)
     }
+
+    // Preserve ended session state for late subscribers
+    ended.set(sessionId, {
+      events: bufferedEvents,
+      ended: true,
+      exitCode,
+    })
+
+    // Clean up after TTL
+    setTimeout(() => {
+      ended.delete(sessionId)
+    }, ENDED_SESSION_TTL_MS)
+
     for (const handler of endHandlers) {
       handler(sessionId, exitCode)
     }
@@ -123,6 +152,26 @@ export function createSessionManager() {
     }
   }
 
+  function getSessionState(sessionId: string): SessionState | null {
+    // Check active sessions first
+    const managed = active.get(sessionId)
+    if (managed) {
+      return {
+        events: [...managed.eventBuffer],
+        ended: false,
+        exitCode: null,
+      }
+    }
+
+    // Check recently ended sessions
+    const endedState = ended.get(sessionId)
+    if (endedState) {
+      return { ...endedState, events: [...endedState.events] }
+    }
+
+    return null
+  }
+
   function onOutput(handler: OutputHandler): void {
     outputHandlers.push(handler)
   }
@@ -131,5 +180,5 @@ export function createSessionManager() {
     endHandlers.push(handler)
   }
 
-  return { create, list, kill, killAll, forceKillAll, onOutput, onEnd }
+  return { create, list, kill, killAll, forceKillAll, getSessionState, onOutput, onEnd }
 }

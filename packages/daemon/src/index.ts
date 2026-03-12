@@ -28,6 +28,9 @@ const router = createRouter({
   mdnsName: getMdnsName(),
 })
 
+// Wire session state provider for late-subscriber replay
+wsHandler.setSessionStateProvider((sessionId) => sessions.getSessionState(sessionId))
+
 // Wire session events to WebSocket
 sessions.onOutput((sessionId, data) => {
   wsHandler.broadcastOutput(sessionId, data)
