@@ -1,12 +1,14 @@
-import { useState, useCallback, useRef } from "react"
-import type { Project, Session, WsServerMessage } from "@claudeck/shared"
+import { useState, useCallback, useRef, useEffect } from "react"
+import type { Project, Session, WsServerMessage, DaemonInfo } from "@claudeck/shared"
 import { useConnection } from "./hooks/useConnection"
 import { useApi } from "./hooks/useApi"
 import { useWebSocket } from "./hooks/useWebSocket"
+import { useSettings } from "./hooks/useSettings"
 import ConnectScreen from "./screens/ConnectScreen"
 import ProjectsScreen from "./screens/ProjectsScreen"
 import ProjectScreen from "./screens/ProjectScreen"
 import SessionScreen from "./screens/SessionScreen"
+import SettingsScreen from "./screens/SettingsScreen"
 import ConnectionBanner from "./components/ConnectionBanner"
 import BottomNav from "./components/BottomNav"
 
@@ -14,12 +16,15 @@ type Screen =
   | { name: "projects" }
   | { name: "project"; project: Project }
   | { name: "session"; session: Session }
+  | { name: "settings" }
 
 export default function App(): React.ReactElement {
   const conn = useConnection()
   const api = useApi(conn.host, conn.token)
   const [screen, setScreen] = useState<Screen>({ name: "projects" })
   const [activeSession, setActiveSession] = useState<Session | null>(null)
+  const { settings, update: updateSettings, reset: resetSettings } = useSettings()
+  const [daemonInfo, setDaemonInfo] = useState<DaemonInfo | null>(null)
 
   // Message handlers for WebSocket
   const messageHandlers = useRef(new Set<(msg: WsServerMessage) => void>())
@@ -29,6 +34,17 @@ export default function App(): React.ReactElement {
       handler(msg)
     }
   }, [])
+
+  useEffect(() => {
+    if (conn.connected && conn.host && conn.token) {
+      fetch(`http://${conn.host}/api/ping`, {
+        headers: { Authorization: `Bearer ${conn.token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => setDaemonInfo(data as DaemonInfo))
+        .catch(() => {})
+    }
+  }, [conn.connected, conn.host, conn.token])
 
   const ws = useWebSocket(
     conn.connected ? conn.host : null,
@@ -93,11 +109,25 @@ export default function App(): React.ReactElement {
         />
       )}
 
+      {screen.name === "settings" && (
+        <SettingsScreen
+          settings={settings}
+          onUpdate={updateSettings}
+          onReset={resetSettings}
+          host={conn.host}
+          token={conn.token}
+          mdnsName={conn.mdnsName ?? null}
+          daemonInfo={daemonInfo}
+          onDisconnect={conn.disconnect}
+        />
+      )}
+
       <BottomNav
-        active={screen.name === "session" ? "session" : "projects"}
+        active={screen.name === "session" ? "session" : screen.name === "settings" ? "settings" : "projects"}
         onNavigate={(s) => {
           if (s === "projects") setScreen({ name: "projects" })
           if (s === "session" && activeSession) setScreen({ name: "session", session: activeSession })
+          if (s === "settings") setScreen({ name: "settings" })
         }}
         hasActiveSession={activeSession !== null}
       />

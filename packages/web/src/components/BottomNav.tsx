@@ -1,4 +1,4 @@
-type Screen = "projects" | "session"
+type Screen = "projects" | "session" | "settings"
 
 type Props = {
   active: Screen
@@ -11,6 +11,15 @@ function FolderIcon({ className }: { className?: string }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function GearIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="10" cy="10" r="3" />
+      <path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M3.4 3.4l1.4 1.4M15.2 15.2l1.4 1.4M3.4 16.6l1.4-1.4M15.2 4.8l1.4-1.4" />
     </svg>
   )
 }
@@ -53,6 +62,15 @@ export default function BottomNav({ active, onNavigate, hasActiveSession }: Prop
           <span>Session</span>
         </button>
       )}
+
+      <button onClick={() => onNavigate("settings")}
+        className={`flex-1 flex flex-col items-center justify-center gap-1 min-h-[56px] py-2 text-xs font-medium transition-colors duration-150
+          ${active === "settings" ? "text-accent" : "text-slate-500"}`}
+      >
+        <div className={`w-1.5 h-1.5 rounded-full mb-[-2px] transition-opacity duration-150 ${active === "settings" ? "bg-accent opacity-100" : "opacity-0"}`} />
+        <GearIcon />
+        <span>Settings</span>
+      </button>
 
       <style>{`
         @keyframes slideInRight {
