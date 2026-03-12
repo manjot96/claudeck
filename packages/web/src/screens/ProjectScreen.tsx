@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
+import { usePullToRefresh } from "../hooks/usePullToRefresh"
 
 type Props = {
   project: Project
@@ -51,17 +52,25 @@ export default function ProjectScreen({
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [recentSessions, setRecentSessions] = useState<Session[]>([])
 
-  useEffect(() => {
-    getSessions().then((sessions) => {
+  const fetchSessions = useCallback(async () => {
+    await getSessions().then((sessions) => {
       const active = sessions.find((s) => s.status === "running")
       setActiveSession(active ?? null)
     }).catch(() => {})
 
-    getAllSessions().then((sessions) => {
+    await getAllSessions().then((sessions) => {
       const projectSessions = sessions.filter((s) => s.projectId === project.id)
       setRecentSessions(projectSessions)
     }).catch(() => {})
   }, [getSessions, getAllSessions, project.id])
+
+  useEffect(() => {
+    fetchSessions()
+  }, [fetchSessions])
+
+  const { containerProps, refreshing, pullDistance } = usePullToRefresh({
+    onRefresh: fetchSessions,
+  })
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault()
@@ -82,7 +91,20 @@ export default function ProjectScreen({
   }
 
   return (
-    <div className="min-h-screen bg-surface p-6 pb-28">
+    <div
+      className="min-h-screen bg-surface p-6 pb-28"
+      style={{ transform: `translateY(${pullDistance}px)` }}
+      {...containerProps}
+    >
+      {/* Pull-to-refresh spinner */}
+      {refreshing && (
+        <div className="flex justify-center mb-4">
+          <svg className="animate-spin h-5 w-5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        </div>
+      )}
       {/* Back button */}
       <button
         onClick={onBack}

@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { Project } from "@claudeck/shared"
+import { usePullToRefresh } from "../hooks/usePullToRefresh"
 
 type Props = {
   getProjects: () => Promise<Project[]>
@@ -97,12 +98,19 @@ export default function ProjectsScreen({ getProjects, onSelect }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    getProjects()
+  const fetchProjects = useCallback(() => {
+    return getProjects()
       .then(setProjects)
       .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
   }, [getProjects])
+
+  useEffect(() => {
+    fetchProjects().finally(() => setLoading(false))
+  }, [fetchProjects])
+
+  const { containerProps, refreshing, pullDistance } = usePullToRefresh({
+    onRefresh: fetchProjects,
+  })
 
   if (loading) {
     return (
@@ -130,10 +138,21 @@ export default function ProjectsScreen({ getProjects, onSelect }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-surface p-6 pb-28">
-      {/* Pull-to-refresh hint */}
+    <div
+      className="min-h-screen bg-surface p-6 pb-28"
+      style={{ transform: `translateY(${pullDistance}px)` }}
+      {...containerProps}
+    >
+      {/* Pull-to-refresh indicator */}
       <div className="flex justify-center mb-6">
-        <div className="w-10 h-1 rounded-full bg-slate-700 animate-pulse" />
+        {refreshing ? (
+          <svg className="animate-spin h-5 w-5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        ) : (
+          <div className="w-10 h-1 rounded-full bg-slate-700 animate-pulse" />
+        )}
       </div>
 
       {/* Header */}
