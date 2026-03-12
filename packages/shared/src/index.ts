@@ -17,6 +17,15 @@ export type ClaudeStreamEvent = {
   [key: string]: unknown
 }
 
+// ── Token Usage ──
+
+export type TokenUsage = {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+}
+
 // ── REST API Types ──
 
 export type Project = {
@@ -33,6 +42,8 @@ export type Session = {
   exitCode?: number
   startedAt: string
   endedAt?: string
+  tokenUsage?: TokenUsage
+  estimatedCost?: number
 }
 
 export type DaemonInfo = {
@@ -57,4 +68,19 @@ export type DaemonConfig = {
   token: string
   port: number
   bind: string
+  retentionDays?: number
+}
+
+// ── Settings ──
+
+export type Settings = {
+  soundEnabled: boolean
+  notificationsEnabled: boolean
+  hapticEnabled: boolean
+  theme: "dark" | "light" | "system"
+  fontSize: "small" | "medium" | "large"
+  autoScroll: boolean
+  typewriterEffect: boolean
+  expandToolResults: boolean
+  showRawJson: boolean
 }
