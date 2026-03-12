@@ -12,7 +12,7 @@
 
 ### 1.1 Settings Screen (`claudeck-h05`)
 
-New centralized preferences screen, accessible from BottomNav (3 tabs: Projects / Session / Settings).
+New centralized preferences screen, accessible from BottomNav. Layout: Settings tab always visible; Session tab appears conditionally when an active session exists. So the nav shows either 2 tabs (Projects + Settings) or 3 tabs (Projects + Session + Settings).
 
 **Shared types** (add to `packages/shared/src/index.ts`):
 
@@ -117,11 +117,25 @@ function createStorage(dbPath: string) {
 - `packages/daemon/src/sessions.ts` — accept storage instance, persist on write
 - `packages/daemon/src/index.ts` — create storage, pass to session manager
 - `packages/daemon/src/router.ts` — add pagination params to GET /api/sessions
+- `packages/web/src/hooks/useApi.ts` — pass pagination params to sessions endpoint
 
 **Config:**
 - DB path: `~/.claudeck/sessions.db`
 - Retention: 30 days default, configurable via `DaemonConfig.retentionDays`
+- **Migration strategy:** On startup, check `schema_version` table. Run `CREATE TABLE IF NOT EXISTS` for any missing tables (future waves add `profiles` table). Bump version after each migration. Wave 1 ships version 1; Wave 4 bumps to version 2 when adding `profiles` table.
 - Add `retentionDays?: number` to `DaemonConfig` in shared types
+- Add `TokenUsage` type and `tokenUsage?: TokenUsage`, `estimatedCost?: number` fields to `Session` type in Wave 1 (so SQLite schema and types stay in sync)
+- Note: `endedAt?: string` was already added to Session type post-MVP; no migration needed
+
+**Token type (add to shared in Wave 1):**
+```typescript
+type TokenUsage = {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+}
+```
 
 ### 1.3 Pull-to-Refresh (`claudeck-s6z`)
 
@@ -295,6 +309,8 @@ type Session = {
 
 ## Wave 3: Independent UI Features (6 features)
 
+> **Parallelism note:** Features 3.1 (Interactive Input) and 3.2 (Multiple Sessions) both heavily modify `sessions.ts` and should be implemented serially, not in parallel. All other Wave 3 features can run in parallel.
+
 ### 3.1 Interactive Follow-up Input (`claudeck-jle`)
 
 The biggest architectural change. Transforms fire-and-forget into full interactive mode.
@@ -306,7 +322,18 @@ The biggest architectural change. Transforms fire-and-forget into full interacti
 
 // Add to WsServerMessage union:
 | { type: "user-input"; sessionId: string; text: string }
+
+// Unified display event for StreamOutput (supports both stream events and user input)
+type DisplayEvent =
+  | (ClaudeStreamEvent & { _display?: never })
+  | { _display: "user-input"; text: string; sentAt: string }
 ```
+
+**Input-ready detection:** The Claude CLI in `stream-json` mode emits a `result` event when it finishes processing and is ready for the next turn. The `InputBar` should be disabled while Claude is processing (between sending input and receiving a `result` event). The flow:
+1. Session starts → InputBar disabled until first `result` event or first `assistant` event appears
+2. User sends input → InputBar disabled, shows "Processing..."
+3. Claude emits events → eventually emits `result` → InputBar re-enabled
+4. If no `result` event within 5 minutes, re-enable InputBar as fallback
 
 **Daemon changes (`packages/daemon/src/sessions.ts`):**
 - Remove `-p` flag from spawn command
@@ -325,7 +352,7 @@ The biggest architectural change. Transforms fire-and-forget into full interacti
 - New `InputBar` component: text input + send button, fixed at bottom of SessionScreen (above BottomNav)
 - Visible only when session is running
 - On send: emit WS `{ type: "input", sessionId, text }`
-- Render `user-input` events as right-aligned user bubbles in StreamOutput
+- StreamOutput accepts `DisplayEvent[]` instead of `ClaudeStreamEvent[]`; renders `_display: "user-input"` as right-aligned user bubbles
 - Keyboard handling: auto-focus, submit on Enter (Shift+Enter for newline)
 
 **New files:**
@@ -350,7 +377,8 @@ type DaemonConfig = {
 ```
 
 **Daemon changes:**
-- `sessions.ts`: replace `active.size > 0` check with `active.size >= config.maxConcurrentSessions`
+- `sessions.ts`: replace `active.size > 0` check with `active.size >= config.maxConcurrentSessions`; change error from `SESSION_ACTIVE` to `MAX_SESSIONS_REACHED`
+- `router.ts`: update error catch to use `MAX_SESSIONS_REACHED` code with message `"Maximum concurrent sessions reached (limit: N)"`
 - Config: add `maxConcurrentSessions` field, default 3
 
 **PWA changes:**
@@ -563,6 +591,7 @@ type SavedMachine = {
 - Machine switcher dropdown at top of ProjectsScreen
 - ConnectScreen becomes "Add Machine" flow
 - `useApi` and `useWebSocket` dynamically switch based on active machine
+- Use React context (`ActiveMachineContext`) to provide active machine's host/token, avoiding deep prop drilling changes across all screens
 - Color-coded machine labels throughout UI
 
 **New files:**
@@ -660,7 +689,7 @@ Every feature gets Playwright e2e tests via Playwright MCP.
 
 ## File Impact Summary
 
-**New files (27):**
+**New files (27 including Playwright test files):**
 - `packages/daemon/src/storage.ts`
 - `packages/daemon/src/profiles.ts`
 - `packages/daemon/src/tls.ts`
@@ -689,7 +718,7 @@ Every feature gets Playwright e2e tests via Playwright MCP.
 - `packages/web/src/utils/exportMarkdown.ts`
 - `packages/web/src/utils/parseSessionChanges.ts`
 
-**Modified files (16):**
+**Modified files (19):**
 - `packages/shared/src/index.ts`
 - `packages/daemon/src/sessions.ts`
 - `packages/daemon/src/websocket.ts`
