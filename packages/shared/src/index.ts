@@ -32,6 +32,7 @@ export type Session = {
   status: "running" | "ended"
   exitCode?: number
   startedAt: string
+  endedAt?: string
 }
 
 export type DaemonInfo = {

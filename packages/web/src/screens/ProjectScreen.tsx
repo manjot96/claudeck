@@ -4,6 +4,7 @@ import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
 type Props = {
   project: Project
   getSessions: () => Promise<Session[]>
+  getAllSessions: () => Promise<Session[]>
   createSession: (body: CreateSessionRequest) => Promise<Session>
   onSessionStarted: (session: Session) => void
   onWatchSession: (session: Session) => void
@@ -12,9 +13,33 @@ type Props = {
 
 const MAX_PROMPT_LENGTH = 10000
 
+function formatRelativeTime(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (seconds < 60) return "just now"
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+function formatDuration(start: string, end?: string): string {
+  if (!end) return "running"
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remaining = seconds % 60
+  if (minutes < 60) return `${minutes}m ${remaining}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
+}
+
 export default function ProjectScreen({
   project,
   getSessions,
+  getAllSessions,
   createSession,
   onSessionStarted,
   onWatchSession,
@@ -24,13 +49,19 @@ export default function ProjectScreen({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [activeSession, setActiveSession] = useState<Session | null>(null)
+  const [recentSessions, setRecentSessions] = useState<Session[]>([])
 
   useEffect(() => {
     getSessions().then((sessions) => {
       const active = sessions.find((s) => s.status === "running")
       setActiveSession(active ?? null)
     }).catch(() => {})
-  }, [getSessions])
+
+    getAllSessions().then((sessions) => {
+      const projectSessions = sessions.filter((s) => s.projectId === project.id)
+      setRecentSessions(projectSessions)
+    }).catch(() => {})
+  }, [getSessions, getAllSessions, project.id])
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault()
@@ -163,6 +194,57 @@ export default function ProjectScreen({
           )}
         </button>
       </form>
+
+      {/* Recent Sessions */}
+      {recentSessions.filter((s) => s.status === "ended").length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-center gap-2 mb-4">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-slate-400">
+              <path d="M10 6V10L13 13M18 10C18 14.4183 14.4183 18 10 18C5.58172 18 2 14.4183 2 10C2 5.58172 5.58172 2 10 2C14.4183 2 18 5.58172 18 10Z"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <h2 className="text-lg font-semibold text-slate-100">Recent Sessions</h2>
+            <span className="text-xs text-slate-500 bg-surface-overlay px-2 py-0.5 rounded-full">
+              {recentSessions.filter((s) => s.status === "ended").length}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {recentSessions
+              .filter((s) => s.status === "ended")
+              .map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => onWatchSession(session)}
+                  className="w-full p-4 bg-surface-raised rounded-xl
+                             border border-surface-overlay text-left
+                             min-h-[72px] hover:bg-surface-overlay/30
+                             transition-colors duration-150"
+                >
+                  <p className="text-slate-200 text-sm line-clamp-2 mb-2">{session.prompt}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                        session.exitCode === 0 ? "text-success" : "text-danger"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          session.exitCode === 0 ? "bg-success" : "bg-danger"
+                        }`} />
+                        {session.exitCode === 0 ? "Completed" : `Exit ${session.exitCode}`}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {formatDuration(session.startedAt, session.endedAt)}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      {formatRelativeTime(session.startedAt)}
+                    </span>
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

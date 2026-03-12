@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import type { WsServerMessage, WsClientMessage } from "@claudeck/shared"
+import { wsBase } from "./hostUrl"
 
 type WsStatus = "connecting" | "connected" | "disconnected"
 
@@ -18,7 +19,7 @@ export function useWebSocket(
     if (!host || !token) return
     setStatus("connecting")
 
-    const ws = new WebSocket(`ws://${host}/ws?token=${token}`)
+    const ws = new WebSocket(`${wsBase(host)}/ws?token=${token}`)
     wsRef.current = ws
 
     ws.onopen = () => {

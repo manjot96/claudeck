@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react"
+import { httpBase } from "./hostUrl"
 
 type ConnectionState = {
   host: string | null
@@ -29,7 +30,7 @@ export function useConnection() {
 
   const connect = useCallback(async (host: string, token: string) => {
     try {
-      const res = await fetch(`http://${host}/api/ping`, {
+      const res = await fetch(`${httpBase(host)}/api/ping`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(3000),
       })

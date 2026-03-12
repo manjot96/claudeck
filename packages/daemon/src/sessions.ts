@@ -27,6 +27,7 @@ type EndHandler = (sessionId: string, exitCode: number) => void
 export function createSessionManager() {
   const active = new Map<string, ManagedSession>()
   const ended = new Map<string, SessionState>()
+  const history: Session[] = [] // all sessions, most recent first
   const outputHandlers: OutputHandler[] = []
   const endHandlers: EndHandler[] = []
 
@@ -61,6 +62,7 @@ export function createSessionManager() {
     }
 
     active.set(id, { session, process: proc, eventBuffer: [] })
+    history.unshift(session) // add to front (most recent first)
 
     // Stream stdout in background
     streamOutput(id, proc)
@@ -109,6 +111,7 @@ export function createSessionManager() {
     if (managed) {
       managed.session.status = "ended"
       managed.session.exitCode = exitCode
+      managed.session.endedAt = new Date().toISOString()
       active.delete(sessionId)
     }
 
@@ -131,6 +134,10 @@ export function createSessionManager() {
 
   function list(): Session[] {
     return Array.from(active.values()).map((m) => m.session)
+  }
+
+  function listAll(): Session[] {
+    return history.map((s) => ({ ...s }))
   }
 
   function kill(sessionId: string): boolean {
@@ -180,5 +187,5 @@ export function createSessionManager() {
     endHandlers.push(handler)
   }
 
-  return { create, list, kill, killAll, forceKillAll, getSessionState, onOutput, onEnd }
+  return { create, list, listAll, kill, killAll, forceKillAll, getSessionState, onOutput, onEnd }
 }

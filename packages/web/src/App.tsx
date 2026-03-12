@@ -65,6 +65,7 @@ export default function App(): React.ReactElement {
         <ProjectScreen
           project={screen.project}
           getSessions={api.getSessions}
+          getAllSessions={api.getAllSessions}
           createSession={api.createSession}
           onSessionStarted={(session) => {
             setActiveSession(session)

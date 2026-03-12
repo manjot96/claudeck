@@ -27,16 +27,23 @@ export default function SessionScreen({
   onBack,
 }: Props) {
   const [events, setEvents] = useState<ClaudeStreamEvent[]>([])
-  const [ended, setEnded] = useState(false)
-  const [exitCode, setExitCode] = useState<number | null>(null)
+  const [ended, setEnded] = useState(session.status === "ended")
+  const [exitCode, setExitCode] = useState<number | null>(session.exitCode ?? null)
   const [stopping, setStopping] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Elapsed timer
   useEffect(() => {
+    const startMs = new Date(session.startedAt).getTime()
+
+    // If session already ended, show final duration and don't tick
+    if (session.status === "ended" && session.endedAt) {
+      setElapsed(Math.floor((new Date(session.endedAt).getTime() - startMs) / 1000))
+      return
+    }
+
     function tick() {
-      const startMs = new Date(session.startedAt).getTime()
       setElapsed(Math.floor((Date.now() - startMs) / 1000))
     }
     tick()
@@ -44,7 +51,7 @@ export default function SessionScreen({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [session.startedAt])
+  }, [session.startedAt, session.endedAt, session.status])
 
   // Stop timer when ended
   useEffect(() => {
@@ -55,6 +62,7 @@ export default function SessionScreen({
   }, [ended])
 
   useEffect(() => {
+    // Still subscribe even for ended sessions — we may get replay events
     wsSubscribe(session.id)
     return () => wsUnsubscribe(session.id)
   }, [session.id, wsSubscribe, wsUnsubscribe])

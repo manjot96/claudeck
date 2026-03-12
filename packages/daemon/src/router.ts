@@ -72,7 +72,8 @@ export function createRouter(deps: RouterDeps) {
     }
 
     if (method === "GET" && path === "/api/sessions") {
-      return json(deps.sessions.list())
+      const all = url.searchParams.get("all") === "true"
+      return json(all ? deps.sessions.listAll() : deps.sessions.list())
     }
 
     if (method === "DELETE" && path.startsWith("/api/sessions/")) {

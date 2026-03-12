@@ -1,11 +1,12 @@
 import { useCallback } from "react"
 import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
+import { httpBase } from "./hostUrl"
 
 export function useApi(host: string | null, token: string | null) {
   const fetchApi = useCallback(
     async <T>(path: string, opts: RequestInit = {}): Promise<T> => {
       if (!host || !token) throw new Error("Not connected")
-      const res = await fetch(`http://${host}${path}`, {
+      const res = await fetch(`${httpBase(host)}${path}`, {
         ...opts,
         headers: {
           Authorization: `Bearer ${token}`,
@@ -32,6 +33,11 @@ export function useApi(host: string | null, token: string | null) {
     [fetchApi]
   )
 
+  const getAllSessions = useCallback(
+    () => fetchApi<Session[]>("/api/sessions?all=true"),
+    [fetchApi]
+  )
+
   const createSession = useCallback(
     (body: CreateSessionRequest) =>
       fetchApi<Session>("/api/sessions", {
@@ -47,5 +53,5 @@ export function useApi(host: string | null, token: string | null) {
     [fetchApi]
   )
 
-  return { getProjects, getSessions, createSession, killSession }
+  return { getProjects, getSessions, getAllSessions, createSession, killSession }
 }
