@@ -18,10 +18,13 @@ type SessionState = {
 
 type GetSessionState = (sessionId: string) => SessionState | null
 
+type SendInputFn = (sessionId: string, text: string) => boolean
+
 export function createWsHandler() {
   const clients = new Set<ServerWebSocket<WsData>>()
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null
   let getSessionState: GetSessionState | null = null
+  let sendInputFn: SendInputFn | null = null
 
   function setSessionStateProvider(provider: GetSessionState): void {
     getSessionState = provider
@@ -65,6 +68,9 @@ export function createWsHandler() {
         }
       } else if (msg.type === "unsubscribe") {
         ws.data.subscriptions.delete(msg.sessionId)
+      } else if (msg.type === "input") {
+        if (sendInputFn) sendInputFn(msg.sessionId, msg.text)
+        broadcast(msg.sessionId, { type: "user-input", sessionId: msg.sessionId, text: msg.text })
       } else if (msg.type === "pong") {
         ws.data.awaitingPong = false
       }
@@ -135,6 +141,10 @@ export function createWsHandler() {
     clients.clear()
   }
 
+  function setSendInputFn(fn: SendInputFn): void {
+    sendInputFn = fn
+  }
+
   return {
     open,
     message,
@@ -144,6 +154,7 @@ export function createWsHandler() {
     broadcastSessionStarted,
     broadcastSessionEnded,
     setSessionStateProvider,
+    setSendInputFn,
     startHeartbeat,
     stopHeartbeat,
     closeAll,

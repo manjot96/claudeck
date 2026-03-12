@@ -39,8 +39,9 @@ export function createSessionManager(opts: ManagerOpts = {}) {
   const endHandlers: EndHandler[] = []
 
   function create(createOpts: CreateOpts): Session {
-    if (active.size > 0) {
-      throw new Error("SESSION_ACTIVE")
+    const limit = opts.maxConcurrent ?? 3
+    if (active.size >= limit) {
+      throw new Error("MAX_SESSIONS_REACHED")
     }
 
     const id = crypto.randomUUID()
@@ -48,8 +49,6 @@ export function createSessionManager(opts: ManagerOpts = {}) {
       "claude",
       "--output-format",
       "stream-json",
-      "-p",
-      createOpts.prompt,
     ]
 
     // Build a clean env: inherit everything but strip CLAUDECODE so
@@ -60,9 +59,18 @@ export function createSessionManager(opts: ManagerOpts = {}) {
     const proc = Bun.spawn(command, {
       stdout: "pipe",
       stderr: "pipe",
+      stdin: "pipe",
       cwd: createOpts.projectPath,
       env: cleanEnv,
     })
+
+    // Write initial prompt to stdin (interactive mode)
+    try {
+      const writer = (proc.stdin as WritableStream<Uint8Array>).getWriter()
+      writer.write(new TextEncoder().encode(createOpts.prompt + "\n"))
+      writer.releaseLock()
+    } catch {}
+
 
     const session: Session = {
       id,
@@ -280,5 +288,18 @@ export function createSessionManager(opts: ManagerOpts = {}) {
     endHandlers.push(handler)
   }
 
-  return { create, list, listAll, kill, killAll, forceKillAll, getSessionState, onOutput, onEnd }
+  function sendInput(sessionId: string, text: string): boolean {
+    const managed = active.get(sessionId)
+    if (!managed) return false
+    try {
+      const writer = (managed.process.stdin as WritableStream<Uint8Array>).getWriter()
+      writer.write(new TextEncoder().encode(text + "\n"))
+      writer.releaseLock()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  return { create, list, listAll, kill, killAll, forceKillAll, getSessionState, onOutput, onEnd, sendInput }
 }

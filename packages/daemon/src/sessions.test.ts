@@ -34,20 +34,34 @@ describe("createSessionManager", () => {
     expect(mgr.list()).toHaveLength(1)
   })
 
-  test("rejects second session while one is active", () => {
-    mgr.create({
+  test("rejects when max concurrent sessions reached", () => {
+    const mgr1 = createSessionManager({ maxConcurrent: 1 })
+    mgr1.create({
       projectPath: "/tmp",
       prompt: "test1",
       command: ["sleep", "10"],
     })
 
     expect(() =>
-      mgr.create({
+      mgr1.create({
         projectPath: "/tmp",
         prompt: "test2",
         command: ["echo", "hi"],
       })
-    ).toThrow("SESSION_ACTIVE")
+    ).toThrow("MAX_SESSIONS_REACHED")
+    mgr1.killAll()
+  })
+
+  test("allows multiple concurrent sessions within limit", () => {
+    const mgr2 = createSessionManager({ maxConcurrent: 2 })
+    mgr2.create({ projectPath: "/tmp", prompt: "p1", command: ["sleep", "10"] })
+    mgr2.create({ projectPath: "/tmp", prompt: "p2", command: ["sleep", "10"] })
+    expect(mgr2.list().length).toBe(2)
+    mgr2.killAll()
+  })
+
+  test("sendInput returns false for unknown session", () => {
+    expect(mgr.sendInput("nonexistent", "hello")).toBe(false)
   })
 
   test("kills a session", () => {

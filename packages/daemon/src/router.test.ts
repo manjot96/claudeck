@@ -5,9 +5,9 @@ import { createSessionManager } from "./sessions"
 
 const TOKEN = "testtoken123"
 
-function makeRouter() {
+function makeRouter(sessionOpts?: { maxConcurrent?: number }) {
   const auth = createAuthChecker(TOKEN)
-  const sessions = createSessionManager()
+  const sessions = createSessionManager(sessionOpts)
   return createRouter({
     auth,
     sessions,
@@ -68,8 +68,8 @@ describe("router", () => {
     expect(body.status).toBe("running")
   })
 
-  test("POST /api/sessions returns 409 when session active", async () => {
-    const router = makeRouter()
+  test("POST /api/sessions returns 409 when max sessions reached", async () => {
+    const router = makeRouter({ maxConcurrent: 1 })
     const first = await router.handle(sessionReq("test1", ["sleep", "10"]))
     expect(first.status).toBe(201)
 

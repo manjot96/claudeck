@@ -64,8 +64,8 @@ export function createRouter(deps: RouterDeps) {
         })
         return json(session, 201)
       } catch (e: unknown) {
-        if (e instanceof Error && e.message === "SESSION_ACTIVE") {
-          return errorResponse("A session is already running", "SESSION_ACTIVE", 409)
+        if (e instanceof Error && (e.message === "SESSION_ACTIVE" || e.message === "MAX_SESSIONS_REACHED")) {
+          return errorResponse("Maximum concurrent sessions reached", "MAX_SESSIONS_REACHED", 409)
         }
         throw e
       }

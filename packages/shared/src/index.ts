@@ -3,14 +3,20 @@
 export type WsClientMessage =
   | { type: "subscribe"; sessionId: string }
   | { type: "unsubscribe"; sessionId: string }
+  | { type: "input"; sessionId: string; text: string }
   | { type: "pong" }
 
 export type WsServerMessage =
   | { type: "output"; sessionId: string; data: ClaudeStreamEvent }
   | { type: "session-started"; sessionId: string }
   | { type: "session-ended"; sessionId: string; exitCode: number }
+  | { type: "user-input"; sessionId: string; text: string }
   | { type: "error"; message: string }
   | { type: "ping" }
+
+export type DisplayEvent =
+  | (ClaudeStreamEvent & { _display?: never })
+  | { _display: "user-input"; text: string; sentAt: string }
 
 export type ClaudeStreamEvent = {
   type: string
@@ -69,6 +75,7 @@ export type DaemonConfig = {
   port: number
   bind: string
   retentionDays?: number
+  maxConcurrentSessions?: number
 }
 
 // ── Settings ──
