@@ -105,6 +105,7 @@ export default function App(): React.ReactElement {
           session={screen.session}
           wsSubscribe={ws.subscribe}
           wsUnsubscribe={ws.unsubscribe}
+          wsSendInput={ws.sendInput}
           wsOnMessage={registerHandler}
           getSessionEvents={api.getSessionEvents}
           onStop={async (id) => {

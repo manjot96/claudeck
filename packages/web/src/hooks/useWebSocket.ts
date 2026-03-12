@@ -72,5 +72,10 @@ export function useWebSocket(
     [send]
   )
 
-  return { status, subscribe, unsubscribe }
+  const sendInput = useCallback(
+    (sessionId: string, text: string) => send({ type: "input", sessionId, text }),
+    [send]
+  )
+
+  return { status, subscribe, unsubscribe, sendInput }
 }

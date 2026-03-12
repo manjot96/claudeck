@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from "react"
-import type { Session, WsServerMessage, ClaudeStreamEvent, Settings } from "@claudeck/shared"
+import type { Session, WsServerMessage, ClaudeStreamEvent, DisplayEvent, Settings } from "@claudeck/shared"
 import StreamOutput from "../components/StreamOutput"
 import SessionStats from "../components/SessionStats"
 import ToolSummaryBar from "../components/ToolSummaryBar"
+import InputBar from "../components/InputBar"
 import { useNotificationSound } from "../hooks/useNotificationSound"
 
 type Props = {
   session: Session
   wsSubscribe: (sessionId: string) => void
   wsUnsubscribe: (sessionId: string) => void
+  wsSendInput?: (sessionId: string, text: string) => void
   wsOnMessage: (handler: (msg: WsServerMessage) => void) => () => void
   getSessionEvents?: (id: string) => Promise<ClaudeStreamEvent[]>
   onStop: (sessionId: string) => Promise<void>
@@ -28,6 +30,7 @@ export default function SessionScreen({
   session,
   wsSubscribe,
   wsUnsubscribe,
+  wsSendInput,
   wsOnMessage,
   getSessionEvents,
   onStop,
@@ -36,6 +39,9 @@ export default function SessionScreen({
   onNotify,
 }: Props) {
   const [events, setEvents] = useState<ClaudeStreamEvent[]>([])
+  const [displayEvents, setDisplayEvents] = useState<DisplayEvent[]>([])
+  const [inputReady, setInputReady] = useState(false)
+  const inputTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
   const [ended, setEnded] = useState(session.status === "ended")
   const [exitCode, setExitCode] = useState<number | null>(session.exitCode ?? null)
   const [tokenUsage, setTokenUsage] = useState(session.tokenUsage)
@@ -91,6 +97,11 @@ export default function SessionScreen({
     return wsOnMessage((msg) => {
       if (msg.type === "output" && msg.sessionId === session.id) {
         setEvents((prev) => [...prev, msg.data])
+        setDisplayEvents((prev) => [...prev, msg.data])
+        if (msg.data.type === "result") setInputReady(true)
+      }
+      if (msg.type === "user-input" && msg.sessionId === session.id) {
+        setDisplayEvents((prev) => [...prev, { _display: "user-input", text: msg.text, sentAt: new Date().toISOString() }])
       }
       if (msg.type === "session-ended" && msg.sessionId === session.id) {
         setEnded(true)
@@ -111,6 +122,20 @@ export default function SessionScreen({
       }
     })
   }, [session.id, wsOnMessage, sound, onNotify, session.prompt])
+
+  // Fallback: enable input after 5 minutes if no result event
+  useEffect(() => {
+    if (!inputReady && !ended && session.status === "running") {
+      inputTimeoutRef.current = setTimeout(() => setInputReady(true), 5 * 60 * 1000)
+      return () => clearTimeout(inputTimeoutRef.current)
+    }
+  }, [inputReady, ended, session.status])
+
+  function handleSendInput(text: string) {
+    wsSendInput?.(session.id, text)
+    setInputReady(false)
+    setDisplayEvents((prev) => [...prev, { _display: "user-input", text, sentAt: new Date().toISOString() }])
+  }
 
   async function handleStop() {
     setStopping(true)
@@ -203,8 +228,13 @@ export default function SessionScreen({
 
       {/* Output stream */}
       <div className="flex-1 min-h-0 pb-20">
-        <StreamOutput events={events} />
+        <StreamOutput events={displayEvents.length > 0 ? displayEvents : events} />
       </div>
+
+      {/* Input bar for follow-up */}
+      {!ended && wsSendInput && (
+        <InputBar onSend={handleSendInput} disabled={!inputReady} />
+      )}
 
       {/* Ended summary footer */}
       {ended && (

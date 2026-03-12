@@ -2,10 +2,10 @@ import { useRef, useEffect, useState, useCallback } from "react"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
-import type { ClaudeStreamEvent } from "@claudeck/shared"
+import type { ClaudeStreamEvent, DisplayEvent } from "@claudeck/shared"
 
 type Props = {
-  events: ClaudeStreamEvent[]
+  events: DisplayEvent[]
 }
 
 export default function StreamOutput({ events }: Props) {
@@ -34,7 +34,9 @@ export default function StreamOutput({ events }: Props) {
     >
       {events.length === 0 && <EmptyState />}
       {events.map((event, i) => (
-        <EventBlock key={i} event={event} />
+        "_display" in event && event._display === "user-input"
+          ? <UserInputBlock key={i} event={event} />
+          : <EventBlock key={i} event={event as ClaudeStreamEvent} />
       ))}
       <div ref={bottomRef} />
 
@@ -260,6 +262,17 @@ function ToolResultBlock({ event }: { event: ClaudeStreamEvent }) {
           {JSON.stringify(event, null, 2)}
         </pre>
       )}
+    </div>
+  )
+}
+
+function UserInputBlock({ event }: { event: { text: string; sentAt: string } }) {
+  return (
+    <div className="flex justify-end mb-3">
+      <div className="bg-accent/20 rounded-xl px-4 py-3 max-w-[80%]">
+        <p className="text-slate-100 text-sm whitespace-pre-wrap">{event.text}</p>
+        <span className="text-xs text-slate-500 mt-1 block text-right">{new Date(event.sentAt).toLocaleTimeString()}</span>
+      </div>
     </div>
   )
 }
