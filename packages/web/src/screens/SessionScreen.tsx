@@ -7,6 +7,7 @@ type Props = {
   wsSubscribe: (sessionId: string) => void
   wsUnsubscribe: (sessionId: string) => void
   wsOnMessage: (handler: (msg: WsServerMessage) => void) => () => void
+  getSessionEvents?: (id: string) => Promise<ClaudeStreamEvent[]>
   onStop: (sessionId: string) => Promise<void>
   onBack: () => void
 }
@@ -23,6 +24,7 @@ export default function SessionScreen({
   wsSubscribe,
   wsUnsubscribe,
   wsOnMessage,
+  getSessionEvents,
   onStop,
   onBack,
 }: Props) {
@@ -61,8 +63,16 @@ export default function SessionScreen({
     }
   }, [ended])
 
+  // For ended sessions, fetch archived events via REST
   useEffect(() => {
-    // Still subscribe even for ended sessions — we may get replay events
+    if (session.status === "ended" && getSessionEvents) {
+      getSessionEvents(session.id).then((archived) => {
+        if (archived.length > 0) setEvents(archived)
+      }).catch(() => {})
+    }
+  }, [session.id, session.status, getSessionEvents])
+
+  useEffect(() => {
     wsSubscribe(session.id)
     return () => wsUnsubscribe(session.id)
   }, [session.id, wsSubscribe, wsUnsubscribe])

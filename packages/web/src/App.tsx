@@ -85,6 +85,7 @@ export default function App(): React.ReactElement {
           wsSubscribe={ws.subscribe}
           wsUnsubscribe={ws.unsubscribe}
           wsOnMessage={registerHandler}
+          getSessionEvents={api.getSessionEvents}
           onStop={async (id) => {
             await api.killSession(id)
           }}

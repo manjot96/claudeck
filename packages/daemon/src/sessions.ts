@@ -28,6 +28,7 @@ export function createSessionManager() {
   const active = new Map<string, ManagedSession>()
   const ended = new Map<string, SessionState>()
   const history: Session[] = [] // all sessions, most recent first
+  const eventArchive = new Map<string, ClaudeStreamEvent[]>() // permanent event storage
   const outputHandlers: OutputHandler[] = []
   const endHandlers: EndHandler[] = []
 
@@ -43,14 +44,18 @@ export function createSessionManager() {
       "stream-json",
       "-p",
       opts.prompt,
-      "--project-dir",
-      opts.projectPath,
     ]
+
+    // Build a clean env: inherit everything but strip CLAUDECODE so
+    // the spawned claude process doesn't think it's nested.
+    const cleanEnv = { ...process.env }
+    delete cleanEnv.CLAUDECODE
 
     const proc = Bun.spawn(command, {
       stdout: "pipe",
       stderr: "pipe",
       cwd: opts.projectPath,
+      env: cleanEnv,
     })
 
     const session: Session = {
@@ -122,6 +127,9 @@ export function createSessionManager() {
       exitCode,
     })
 
+    // Archive events permanently for session history replay
+    eventArchive.set(sessionId, bufferedEvents)
+
     // Clean up after TTL
     setTimeout(() => {
       ended.delete(sessionId)
@@ -170,10 +178,22 @@ export function createSessionManager() {
       }
     }
 
-    // Check recently ended sessions
+    // Check recently ended sessions (has TTL)
     const endedState = ended.get(sessionId)
     if (endedState) {
       return { ...endedState, events: [...endedState.events] }
+    }
+
+    // Check permanent archive
+    const archived = eventArchive.get(sessionId)
+    if (archived) {
+      // Find the session in history to get the exit code
+      const hist = history.find((s) => s.id === sessionId)
+      return {
+        events: [...archived],
+        ended: true,
+        exitCode: hist?.exitCode ?? null,
+      }
     }
 
     return null

@@ -76,6 +76,17 @@ export function createRouter(deps: RouterDeps) {
       return json(all ? deps.sessions.listAll() : deps.sessions.list())
     }
 
+    // GET /api/sessions/:id/events — fetch archived events for a session
+    const eventsMatch = method === "GET" && path.match(/^\/api\/sessions\/([^/]+)\/events$/)
+    if (eventsMatch) {
+      const id = eventsMatch[1]
+      const state = deps.sessions.getSessionState(id)
+      if (!state) {
+        return errorResponse("Session not found", "NOT_FOUND", 404)
+      }
+      return json(state.events)
+    }
+
     if (method === "DELETE" && path.startsWith("/api/sessions/")) {
       const id = path.split("/").pop()!
       const killed = deps.sessions.kill(id)

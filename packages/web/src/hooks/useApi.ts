@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import type { Project, Session, CreateSessionRequest } from "@claudeck/shared"
+import type { Project, Session, CreateSessionRequest, ClaudeStreamEvent } from "@claudeck/shared"
 import { httpBase } from "./hostUrl"
 
 export function useApi(host: string | null, token: string | null) {
@@ -53,5 +53,10 @@ export function useApi(host: string | null, token: string | null) {
     [fetchApi]
   )
 
-  return { getProjects, getSessions, getAllSessions, createSession, killSession }
+  const getSessionEvents = useCallback(
+    (id: string) => fetchApi<ClaudeStreamEvent[]>(`/api/sessions/${id}/events`),
+    [fetchApi]
+  )
+
+  return { getProjects, getSessions, getAllSessions, createSession, killSession, getSessionEvents }
 }
